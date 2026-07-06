@@ -3,10 +3,14 @@ import requests
 import urllib.parse
 from groq import Groq
 
+# --- KONFIGURASI API ---
+# Mengambil kunci rahasia dari sistem Streamlit Cloud
 GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
+# --- SETUP HALAMAN ---
 st.set_page_config(page_title="Concept Generator", layout="wide", initial_sidebar_state="collapsed")
 
+# --- CUSTOM CSS (ULTRA-MINIMALIST OVERRIDE) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -109,23 +113,35 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- HEADER (Left Aligned) ---
 st.markdown("<h2 class='left-align-title'>Concept Generator</h2>", unsafe_allow_html=True)
 st.markdown("<p class='left-align-subtitle'>AI-Powered Pre-production Tool</p>", unsafe_allow_html=True)
 
 
+# --- FUNGSI GENERATE GAMBAR ---
 def generate_image(prompt, width, height):
     encoded_prompt = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
 
+    # Menyamar sebagai browser asli untuk menghindari blokir dari server AI
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+
     try:
-        response = requests.get(url, timeout=25)
+        response = requests.get(url, headers=headers, timeout=30)
         if response.status_code == 200:
             return response.content
     except Exception:
         pass
-    return requests.get(f"https://via.placeholder.com/{width}x{height}.png?text=Generation+Failed").content
+
+    # Fallback yang kebal dari SSL Error menggunakan placehold.co
+    try:
+        fallback_url = f"https://placehold.co/{width}x{height}/F8F9FA/A0A0A0/png?text=Generation+Failed"
+        return requests.get(fallback_url, headers=headers, timeout=10).content
+    except Exception:
+        return None
 
 
+# --- LAYOUTING ---
 col_input, col_spacing, col_output = st.columns([1, 0.1, 1.2])
 
 with col_input:
@@ -155,6 +171,7 @@ with col_output:
     if generate_btn and scene_desc:
         with st.spinner("Processing visual concepts..."):
             try:
+                # 1. PROSES LLM (GROQ)
                 client = Groq(api_key=GROQ_API_KEY)
                 system_instruction = """
                 You are an expert AI prompt engineer for Stable Diffusion. 
@@ -174,17 +191,21 @@ with col_output:
                 )
                 enhanced_prompt = chat_completion.choices[0].message.content.strip()
 
+                # 2. PROSES IMAGE GENERATION
                 image_bytes = generate_image(enhanced_prompt, width, height)
 
-                # Render Gambar & Tombol Download Full-Width
-                st.image(image_bytes, use_container_width=True)
+                # 3. RENDER GAMBAR DENGAN PENGAMAN
+                if image_bytes:
+                    st.image(image_bytes, use_container_width=True)
 
-                st.download_button(
-                    label="Download Concept Image",
-                    data=image_bytes,
-                    file_name=f"concept_{style.lower()}_{mood.lower()}.png",
-                    mime="image/png"
-                )
+                    st.download_button(
+                        label="Download Concept Image",
+                        data=image_bytes,
+                        file_name=f"concept_{style.lower()}_{mood.lower()}.png",
+                        mime="image/png"
+                    )
+                else:
+                    st.error("Gagal merender gambar. Server visual sedang sibuk, silakan coba lagi.")
 
                 # Instruksi Hover Pudar
                 st.markdown(
