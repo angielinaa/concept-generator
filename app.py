@@ -3,7 +3,7 @@ import requests
 import urllib.parse
 from groq import Groq
 
-GROQ_API_KEY = "MASUKKAN_GROQ_API_KEY_DISINI"
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
 st.set_page_config(page_title="Concept Generator", layout="wide", initial_sidebar_state="collapsed")
 
